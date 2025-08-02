@@ -337,6 +337,62 @@ function registerInventoryTools(server: McpServer, bot: any) {
 
 // ========== Block Interaction Tools ==========
 
+// Helper function to place a single block - extracted for reuse
+async function placeSingleBlock(bot: any, x: number, y: number, z: number, faceDirection: FaceDirection = 'down'): Promise<{ success: boolean, message: string }> {
+  try {
+    const placePos = new Vec3(x, y, z);
+    const blockAtPos = bot.blockAt(placePos);
+    if (blockAtPos && blockAtPos.name !== 'air') {
+      return { success: false, message: `There's already a block (${blockAtPos.name}) at (${x}, ${y}, ${z})` };
+    }
+
+    const possibleFaces: FaceOption[] = [
+      { direction: 'down', vector: new Vec3(0, -1, 0) },
+      { direction: 'north', vector: new Vec3(0, 0, -1) },
+      { direction: 'south', vector: new Vec3(0, 0, 1) },
+      { direction: 'east', vector: new Vec3(1, 0, 0) },
+      { direction: 'west', vector: new Vec3(-1, 0, 0) },
+      { direction: 'up', vector: new Vec3(0, 1, 0) }
+    ];
+
+    // Prioritize the requested face direction
+    if (faceDirection !== 'down') {
+      const specificFace = possibleFaces.find(face => face.direction === faceDirection);
+      if (specificFace) {
+        possibleFaces.unshift(possibleFaces.splice(possibleFaces.indexOf(specificFace), 1)[0]);
+      }
+    }
+
+    // Try each potential face for placing
+    for (const face of possibleFaces) {
+      const referencePos = placePos.plus(face.vector);
+      const referenceBlock = bot.blockAt(referencePos);
+
+      if (referenceBlock && referenceBlock.name !== 'air') {
+        if (!bot.canSeeBlock(referenceBlock)) {
+          // Try to move closer to see the block
+          const goal = new goals.GoalNear(referencePos.x, referencePos.y, referencePos.z, 2);
+          await bot.pathfinder.goto(goal);
+        }
+
+        await bot.lookAt(placePos, true);
+
+        try {
+          await bot.placeBlock(referenceBlock, face.vector.scaled(-1));
+          return { success: true, message: `Placed block at (${x}, ${y}, ${z}) using ${face.direction} face` };
+        } catch (placeError) {
+          console.error(`Failed to place using ${face.direction} face: ${(placeError as Error).message}`);
+          continue;
+        }
+      }
+    }
+
+    return { success: false, message: `Failed to place block at (${x}, ${y}, ${z}): No suitable reference block found` };
+  } catch (error) {
+    return { success: false, message: `Error placing block at (${x}, ${y}, ${z}): ${(error as Error).message}` };
+  }
+}
+
 function registerBlockTools(server: McpServer, bot: any) {
   server.tool(
     "place-block",
@@ -348,55 +404,54 @@ function registerBlockTools(server: McpServer, bot: any) {
       faceDirection: z.enum(['up', 'down', 'north', 'south', 'east', 'west']).optional().describe("Direction to place against (default: 'down')")
     },
     async ({ x, y, z, faceDirection = 'down' }: { x: number, y: number, z: number, faceDirection?: FaceDirection }): Promise<McpResponse> => {
+      const result = await placeSingleBlock(bot, x, y, z, faceDirection);
+      return createResponse(result.message);
+    }
+  );
+
+  server.tool(
+    "place-blocks-batch",
+    "Place multiple blocks at different positions sequentially in a batch",
+    {
+      blocks: z.array(z.object({
+        x: z.number().describe("X coordinate"),
+        y: z.number().describe("Y coordinate"),
+        z: z.number().describe("Z coordinate"),
+        faceDirection: z.enum(['up', 'down', 'north', 'south', 'east', 'west']).optional().describe("Direction to place against (default: 'down')")
+      })).describe("Array of block placement specifications")
+    },
+    async ({ blocks }): Promise<McpResponse> => {
       try {
-        const placePos = new Vec3(x, y, z);
-        const blockAtPos = bot.blockAt(placePos);
-        if (blockAtPos && blockAtPos.name !== 'air') {
-          return createResponse(`There's already a block (${blockAtPos.name}) at (${x}, ${y}, ${z})`);
+        if (blocks.length === 0) {
+          return createResponse("No blocks specified for placement");
         }
 
-        const possibleFaces: FaceOption[] = [
-          { direction: 'down', vector: new Vec3(0, -1, 0) },
-          { direction: 'north', vector: new Vec3(0, 0, -1) },
-          { direction: 'south', vector: new Vec3(0, 0, 1) },
-          { direction: 'east', vector: new Vec3(1, 0, 0) },
-          { direction: 'west', vector: new Vec3(-1, 0, 0) },
-          { direction: 'up', vector: new Vec3(0, 1, 0) }
-        ];
+        const results: string[] = [];
+        let successCount = 0;
+        let failureCount = 0;
 
-        // Prioritize the requested face direction
-        if (faceDirection !== 'down') {
-          const specificFace = possibleFaces.find(face => face.direction === faceDirection);
-          if (specificFace) {
-            possibleFaces.unshift(possibleFaces.splice(possibleFaces.indexOf(specificFace), 1)[0]);
+        for (let i = 0; i < blocks.length; i++) {
+          const block = blocks[i];
+          const { x, y, z, faceDirection = 'down' } = block;
+          
+          results.push(`Block ${i + 1}/${blocks.length} at (${x}, ${y}, ${z}):`);
+          
+          const result = await placeSingleBlock(bot, x, y, z, faceDirection);
+          
+          if (result.success) {
+            successCount++;
+            results.push(`  ✓ ${result.message}`);
+          } else {
+            failureCount++;
+            results.push(`  ✗ ${result.message}`);
           }
         }
 
-        // Try each potential face for placing
-        for (const face of possibleFaces) {
-          const referencePos = placePos.plus(face.vector);
-          const referenceBlock = bot.blockAt(referencePos);
+        // Summary
+        const summary = `\nBatch placement completed: ${successCount} successful, ${failureCount} failed out of ${blocks.length} total blocks.`;
+        results.push(summary);
 
-          if (referenceBlock && referenceBlock.name !== 'air') {
-            if (!bot.canSeeBlock(referenceBlock)) {
-              // Try to move closer to see the block
-              const goal = new goals.GoalNear(referencePos.x, referencePos.y, referencePos.z, 2);
-              await bot.pathfinder.goto(goal);
-            }
-
-            await bot.lookAt(placePos, true);
-
-            try {
-              await bot.placeBlock(referenceBlock, face.vector.scaled(-1));
-              return createResponse(`Placed block at (${x}, ${y}, ${z}) using ${face.direction} face`);
-            } catch (placeError) {
-              console.error(`Failed to place using ${face.direction} face: ${(placeError as Error).message}`);
-              continue;
-            }
-          }
-        }
-
-        return createResponse(`Failed to place block at (${x}, ${y}, ${z}): No suitable reference block found`);
+        return createResponse(results.join('\n'));
       } catch (error) {
         return createErrorResponse(error as Error);
       }

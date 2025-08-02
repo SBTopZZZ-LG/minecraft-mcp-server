@@ -88,6 +88,7 @@ Once connected to a Minecraft server, Claude can use these commands:
 
 ### Block Interaction
 - `place-block` - Place a block at specified coordinates
+- `place-blocks-batch` - Place multiple blocks at different positions sequentially in a batch
 - `dig-block` - Dig a block at specified coordinates
 - `get-block-info` - Get information about a block
 - `find-block` - Find the nearest block of a specific type
