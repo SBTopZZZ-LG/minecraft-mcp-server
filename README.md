@@ -114,3 +114,34 @@ Feel free to submit pull requests or open issues for improvements. Some areas th
 - New functionality and commands
 
 To get started with contributing, please see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Development
+
+### Docker CI
+
+This project includes a comprehensive Docker-based CI pipeline that runs linting, builds, and tests with coverage reporting.
+
+#### Building and Running Tests
+
+To run the complete CI pipeline locally:
+
+```bash
+# Build the Docker image
+docker build -t minecraft-mcp-ci .
+
+# Run the CI pipeline
+docker run --rm minecraft-mcp-ci
+
+# Extract coverage reports
+docker run --rm -v $(pwd)/coverage-output:/output minecraft-mcp-ci sh -c "cp -r coverage/* /output/"
+```
+
+The Docker container will:
+1. Lint the TypeScript code using ESLint
+2. Build the project using TypeScript compiler
+3. Run all tests with coverage reporting using Jest
+4. Generate HTML and LCOV coverage reports
+
+#### GitHub Actions
+
+The GitHub Actions workflow automatically builds and runs the Docker container on every push and pull request to ensure code quality and test coverage.
