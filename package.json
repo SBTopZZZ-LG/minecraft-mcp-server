@@ -11,7 +11,11 @@
     "build": "tsc",
     "start": "node dist/bot.js",
     "lint": "eslint \"src/**/*.ts\" --max-warnings=100",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix"
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --coverage --ci --watchAll=false"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.16.0",
@@ -23,12 +27,16 @@
     "zod": "^3.25.74"
   },
   "devDependencies": {
+    "@jest/types": "^30.0.5",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.1.0",
     "@types/vec3": "^0.1.4",
     "@types/yargs": "^17.0.33",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
     "eslint": "^9.32.0",
+    "jest": "^30.0.5",
+    "ts-jest": "^29.4.1",
     "typescript": "^5.8.3"
   },
   "engines": {
