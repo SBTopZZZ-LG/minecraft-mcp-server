@@ -24,6 +24,8 @@ This repository now includes comprehensive unit tests and integration tests with
 
 ## Running Tests
 
+### Local Testing
+
 ```bash
 # Run all tests
 npm test
@@ -37,6 +39,32 @@ npm run test:watch
 # Run tests in CI mode
 npm run test:ci
 ```
+
+### Docker Testing
+
+The project includes a Docker-based CI pipeline that provides a consistent testing environment:
+
+```bash
+# Build the Docker image for CI
+docker build -t minecraft-mcp-ci .
+
+# Run the complete CI pipeline (lint, build, test with coverage)
+docker run --rm minecraft-mcp-ci
+
+# Extract coverage reports to host system
+mkdir -p coverage-output
+docker run --rm -v $(pwd)/coverage-output:/output minecraft-mcp-ci sh -c "cp -r coverage/* /output/"
+```
+
+#### Docker CI Pipeline
+
+The Docker container executes the following steps:
+1. **Linting**: Runs ESLint on all TypeScript source files
+2. **Building**: Compiles TypeScript to JavaScript using tsc
+3. **Testing**: Executes Jest test suite with coverage reporting
+4. **Coverage Export**: Generates HTML, LCOV, and Clover coverage reports
+
+This ensures all tests run in a clean, consistent environment with Node.js 22+ as required by project dependencies.
 
 ## Coverage Requirements
 

@@ -1,4 +1,4 @@
-name: Build and Lint
+name: Build and Test with Docker
 
 on:
   push:
@@ -7,13 +7,13 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Use Node.js
+    - name: Use Node.js for local setup
       uses: actions/setup-node@v4
       with:
         node-version: '22.x'
@@ -22,8 +22,24 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Lint
-      run: npx eslint "src/**/*.ts" --max-warnings=100
+    - name: Build Docker image for CI
+      run: docker build -t minecraft-mcp-ci .
 
-    - name: Build
-      run: npm run build
+    - name: Run CI pipeline in Docker
+      run: docker run --rm minecraft-mcp-ci
+
+    - name: Extract coverage report
+      run: |
+        docker run --rm -v ${{ github.workspace }}/coverage-output:/output minecraft-mcp-ci sh -c "cp -r coverage/* /output/"
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage-output/lcov.info
+        fail_ci_if_error: false
+
+    - name: Archive code coverage results
+      uses: actions/upload-artifact@v4
+      with:
+        name: code-coverage-report
+        path: coverage-output/
